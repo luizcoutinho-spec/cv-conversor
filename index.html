@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conversor de Currículo — IA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  :root{ --accent:#149da4; --ink:#222; --muted:#8a8a8a; --rule:#e3e3e3; --bg:#eef1f3; }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; font-family:"Segoe UI",Arial,Helvetica,sans-serif; color:var(--ink); background:var(--bg); }
+  /* ---------- App bar ---------- */
+  .appbar{ background:#fff; border-bottom:1px solid #dfe3e6; padding:14px 20px; }
+  .appbar h1{ font-size:18px; margin:0 0 3px; }
+  .appbar p{ margin:0 0 12px; font-size:12px; color:#666; }
+  .row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  .ctl{ display:flex; flex-direction:column; gap:3px; }
+  .ctl label{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:#888; }
+  input[type=text],input[type=password],select{ height:34px; border:1px solid #cfd4d8; border-radius:6px; padding:0 9px; font-size:13px; background:#fff; }
+  input[type=password]{ width:300px; }
+  .btn{ height:34px; border:none; border-radius:6px; padding:0 16px; font-size:13px; font-weight:600; cursor:pointer; background:var(--accent); color:#fff; display:inline-flex; align-items:center; gap:6px; }
+  .btn:disabled{ opacity:.5; cursor:not-allowed; }
+  .btn.alt{ background:#fff; color:var(--accent); border:1px solid var(--accent); }
+  .drop{ border:2px dashed #c4cace; border-radius:8px; padding:14px 18px; text-align:center; font-size:13px; color:#777; cursor:pointer; background:#fafbfc; transition:.15s; }
+  .drop.hot{ border-color:var(--accent); background:#f0fbfb; color:var(--accent); }
+  .status{ font-size:12px; padding:8px 0 0; min-height:18px; }
+  .status.err{ color:#c0392b; }
+  .status.ok{ color:#178a5a; }
+  details.help{ margin-top:8px; font-size:12px; color:#555; }
+  details.help summary{ cursor:pointer; color:var(--accent); font-weight:600; }
+  details.help a{ color:var(--accent); }
+  .spin{ width:14px; height:14px; border:2px solid #fff; border-top-color:transparent; border-radius:50%; display:inline-block; animation:sp .7s linear infinite; }
+  @keyframes sp{ to{ transform:rotate(360deg);} }
+  /* ---------- Stage ---------- */
+  .stage{ padding:24px; display:flex; justify-content:center; }
+  .empty{ color:#9aa3a8; text-align:center; padding:60px 20px; font-size:14px; }
+  /* ---------- CV page ---------- */
+  .page{ width:210mm; min-height:297mm; background:#fff; padding:48px 44px; box-shadow:0 2px 18px rgba(0,0,0,.14); }
+  .page *{ box-sizing:border-box; }
+  .head{ display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .name{ font-size:32px; font-weight:800; letter-spacing:.5px; line-height:1; }
+  .role{ color:var(--accent); font-weight:700; font-size:14px; margin-top:7px; }
+  .contact{ display:flex; flex-wrap:wrap; gap:16px; margin-top:10px; font-size:11px; color:#555; }
+  .contact span{ display:inline-flex; align-items:center; gap:5px; }
+  .contact svg{ width:12px; height:12px; fill:var(--accent); flex:0 0 auto; }
+  .photo{ width:80px; height:80px; border-radius:50%; background:var(--accent); color:#fff; flex:0 0 auto; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700; letter-spacing:1px; }
+  .body{ display:flex; gap:24px; margin-top:22px; }
+  .left{ flex:0 0 57%; }
+  .right{ flex:1; }
+  h2.sec{ font-size:14px; font-weight:800; text-transform:uppercase; letter-spacing:1px; padding-bottom:6px; border-bottom:1.5px solid var(--ink); margin:0 0 13px; }
+  .right h2.sec{ border-bottom-color:var(--accent); }
+  .block+.block{ margin-top:18px; }
+  .entry{ padding-bottom:12px; margin-bottom:12px; border-bottom:1px dotted var(--rule); }
+  .entry:last-child{ border-bottom:none; margin-bottom:0; padding-bottom:0; }
+  .entry .title{ font-size:14px; font-weight:700; }
+  .entry .org{ color:var(--accent); font-weight:600; font-size:12.5px; margin-top:2px; }
+  .entry .meta{ display:flex; flex-wrap:wrap; gap:14px; margin-top:6px; font-size:11px; color:var(--muted); }
+  .entry .meta span{ display:inline-flex; align-items:center; gap:5px; }
+  .entry .meta svg{ width:11px; height:11px; fill:var(--muted); flex:0 0 auto; }
+  .entry .note{ font-size:11px; color:var(--muted); font-style:italic; margin-top:3px; }
+  .resumo{ font-size:12px; line-height:1.55; color:#444; text-align:justify; }
+  .ach{ display:flex; gap:10px; margin-bottom:13px; }
+  .ach:last-child{ margin-bottom:0; }
+  .ach .badge{ flex:0 0 auto; width:26px; height:26px; border-radius:6px; background:var(--accent); display:flex; align-items:center; justify-content:center; }
+  .ach .badge svg{ width:14px; height:14px; fill:#fff; }
+  .ach .t{ font-size:12px; font-weight:700; }
+  .ach .d{ font-size:11px; color:#666; line-height:1.45; margin-top:1px; }
+  .lang{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .lang:last-child{ margin-bottom:0; }
+  .lang .n{ font-size:12px; font-weight:600; }
+  .lang .lv{ font-size:10px; color:var(--muted); }
+  .dots{ display:flex; gap:4px; }
+  .dot{ width:9px; height:9px; border-radius:50%; background:#dfe3e6; }
+  .dot.on{ background:var(--accent); }
+  .skills{ display:flex; flex-wrap:wrap; gap:6px; }
+  .skill{ font-size:11px; background:#eef6f6; color:#0d6e72; border-radius:4px; padding:3px 9px; }
+  .award{ font-size:11.5px; line-height:1.5; color:#444; }
+  .award b{ color:var(--ink); }
+  [contenteditable=true]:focus{ outline:2px solid #bfe7e9; border-radius:3px; }
+  /* ---------- Print ---------- */
+  @page{ size:A4; margin:0; }
+  @media print{
+    .appbar,.stage>.empty{ display:none !important; }
+    body,html{ background:#fff; }
+    .stage{ padding:0; display:block; }
+    .page{ box-shadow:none; width:auto; min-height:auto; }
+  }
+</style>
+</head>
+<body>
+  <div class="appbar">
+    <h1>Conversor de Currículo — IA</h1>
+    <p>Envie um currículo em PDF ou Word. A IA extrai o conteúdo e gera um novo currículo no template de duas colunas, pronto para baixar em PDF. Nada é inventado.</p>
+    <div class="row">
+      <div class="ctl" style="flex:1 1 320px;">
+        <label>1 · Currículo (PDF ou .docx)</label>
+        <div id="drop" class="drop">Arraste o arquivo aqui ou clique para selecionar</div>
+        <input id="file" type="file" accept=".pdf,.doc,.docx" hidden>
+      </div>
+      <div class="ctl">
+        <label>2 · Chave de API Anthropic</label>
+        <input id="key" type="password" placeholder="sk-ant-..." autocomplete="off">
+      </div>
+      <div class="ctl">
+        <label>Modelo</label>
+        <select id="model">
+          <option value="claude-opus-4-8">Opus 4.8 (melhor)</option>
+          <option value="claude-sonnet-4-6">Sonnet 4.6 (equilíbrio)</option>
+          <option value="claude-haiku-4-5">Haiku 4.5 (econômico)</option>
+        </select>
+      </div>
+      <div class="ctl">
+        <label>Idioma</label>
+        <select id="lang">
+          <option value="Português">Português</option>
+          <option value="Inglês">Inglês</option>
+          <option value="Espanhol">Espanhol</option>
+        </select>
+      </div>
+      <div class="ctl">
+        <label>&nbsp;</label>
+        <button id="go" class="btn" disabled>3 · Gerar currículo</button>
+      </div>
+      <div class="ctl">
+        <label>&nbsp;</label>
+        <button id="dl" class="btn alt" disabled>Baixar PDF</button>
+      </div>
+    </div>
+    <div id="status" class="status"></div>
+    <details class="help">
+      <summary>Onde consigo a chave de API? É seguro?</summary>
+      <p>Gere uma chave em <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com → API Keys</a>. A chave fica salva apenas neste navegador (localStorage) e é enviada direto à API da Anthropic — este arquivo não tem servidor. O uso da API tem custo por documento processado.</p>
+    </details>
+  </div>
+
+  <div class="stage">
+    <div id="empty" class="empty">Nenhum currículo gerado ainda.<br>Envie um arquivo, cole sua chave e clique em <b>Gerar currículo</b>.</div>
+    <div id="page" class="page" style="display:none;"></div>
+  </div>
+
+<script>
+const ICON = {
+  cal:'<svg viewBox="0 0 24 24"><path d="M7 2v2H5c-1.1 0-2 .9-2 2v13c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2h-2V2h-2v2H9V2H7zM5 9h14v10H5V9z"/></svg>',
+  pin:'<svg viewBox="0 0 24 24"><path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7zm0 9.5A2.5 2.5 0 1112 6.5a2.5 2.5 0 010 5z"/></svg>',
+  phone:'<svg viewBox="0 0 24 24"><path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.5.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.5.1.4 0 .8-.3 1l-2.2 2.3z"/></svg>',
+  mail:'<svg viewBox="0 0 24 24"><path d="M3 5h18c.6 0 1 .4 1 1v12c0 .6-.4 1-1 1H3c-.6 0-1-.4-1-1V6c0-.6.4-1 1-1zm9 7L4 7v1l8 5 8-5V7l-8 5z"/></svg>',
+  link:'<svg viewBox="0 0 24 24"><path d="M4.98 3.5C4.98 4.9 3.9 6 2.5 6S0 4.9 0 3.5 1.1 1 2.5 1s2.48 1.1 2.48 2.5zM.2 8h4.6v14H.2V8zm7.5 0h4.4v1.9h.06c.6-1.1 2.1-2.3 4.3-2.3 4.6 0 5.5 3 5.5 6.9V22h-4.6v-6.6c0-1.6 0-3.6-2.2-3.6s-2.5 1.7-2.5 3.5V22H7.7V8z"/></svg>',
+  bars:'<svg viewBox="0 0 24 24"><path d="M3 13h4v8H3v-8zm7-9h4v17h-4V4zm7 5h4v12h-4V9z"/></svg>',
+  cut:'<svg viewBox="0 0 24 24"><path d="M16 6l2.3 2.3-4.9 4.9-4-4L2 16.6 3.4 18l5-5 4 4 6.3-6.3L21 13V6z"/></svg>',
+  globe:'<svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm0 2c1.3 1.4 2 3.6 2.2 6H9.8C10 7.6 10.7 5.4 12 4zM6.1 8H9c-.1 1.3-.1 2.7 0 4H6.1A8 8 0 016.1 8zm0 6H9c.1 1.3.4 2.6.8 3.8A8 8 0 016.1 14zM12 20c-1-1.1-1.7-2.5-2-4h4c-.3 1.5-1 2.9-2 4zm3-6H9c-.1-1.3-.1-2.7 0-4h6c.1 1.3.1 2.7 0 4zm.1 3.8c.4-1.2.7-2.5.8-3.8h2.9a8 8 0 01-3.7 3.8zM15.9 12c.1-1.3.1-2.7 0-4h2.9a8 8 0 010 4h-2.9z"/></svg>',
+  trophy:'<svg viewBox="0 0 24 24"><path d="M4 20h16v2H4v-2zM6 8l4 4 4-6 4 5v5H6V8z"/></svg>'
+};
+const ACH_ICONS = [ICON.bars, ICON.cut, ICON.globe, ICON.trophy];
+
+const $ = id => document.getElementById(id);
+let pdfjs = window['pdfjsLib'];
+if (pdfjs) pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let fileData = null; // {name, kind:'pdf'|'docx', text, images:[b64]}
+
+function setStatus(msg, cls){ const s=$('status'); s.textContent=msg||''; s.className='status'+(cls?' '+cls:''); }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+// ---------- Persist key ----------
+$('key').value = localStorage.getItem('anthropicKey') || '';
+$('key').addEventListener('input', ()=>{ localStorage.setItem('anthropicKey',$('key').value.trim()); refreshGo(); });
+$('model').value = localStorage.getItem('cvModel') || 'claude-opus-4-8';
+$('model').addEventListener('change',()=>localStorage.setItem('cvModel',$('model').value));
+
+function refreshGo(){ $('go').disabled = !(fileData && $('key').value.trim()); }
+
+// ---------- File handling ----------
+const drop = $('drop');
+drop.addEventListener('click', ()=>$('file').click());
+drop.addEventListener('dragover', e=>{ e.preventDefault(); drop.classList.add('hot'); });
+drop.addEventListener('dragleave', ()=>drop.classList.remove('hot'));
+drop.addEventListener('drop', e=>{ e.preventDefault(); drop.classList.remove('hot'); if(e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); });
+$('file').addEventListener('change', e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+
+async function handleFile(file){
+  fileData = null; $('go').disabled = true;
+  drop.textContent = file.name;
+  const ext = file.name.toLowerCase().split('.').pop();
+  try{
+    if(ext === 'pdf'){
+      setStatus('Lendo PDF…');
+      const data = await extractPdf(file);
+      fileData = { name:file.name, kind:'pdf', ...data };
+      if(data.images.length) setStatus('PDF parece ser imagem/digitalizado — usarei visão da IA ('+data.images.length+' pág).', 'ok');
+      else setStatus('PDF lido ('+data.text.length+' caracteres de texto).', 'ok');
+    } else if(ext === 'docx' || ext === 'doc'){
+      setStatus('Lendo documento Word…');
+      const buf = await file.arrayBuffer();
+      const res = await window.mammoth.extractRawText({ arrayBuffer: buf });
+      fileData = { name:file.name, kind:'docx', text:res.value||'', images:[] };
+      setStatus('Word lido ('+fileData.text.length+' caracteres).', 'ok');
+    } else {
+      setStatus('Formato não suportado. Envie PDF ou .docx.', 'err'); return;
+    }
+  }catch(err){ console.error(err); setStatus('Erro ao ler arquivo: '+err.message, 'err'); return; }
+  refreshGo();
+}
+
+async function extractPdf(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: buf }).promise;
+  let text = '';
+  for(let i=1;i<=pdf.numPages;i++){
+    const pg = await pdf.getPage(i);
+    const tc = await pg.getTextContent();
+    text += tc.items.map(it=>it.str).join(' ') + '\n';
+  }
+  // If little real text, the PDF is likely scanned/flattened — render pages to images for vision.
+  if(text.replace(/\s/g,'').length >= 120) return { text, images:[] };
+  const images = [];
+  const maxPages = Math.min(pdf.numPages, 3);
+  for(let i=1;i<=maxPages;i++){
+    const pg = await pdf.getPage(i);
+    const vp = pg.getViewport({ scale: 2 });
+    const cv = document.createElement('canvas');
+    cv.width = vp.width; cv.height = vp.height;
+    await pg.render({ canvasContext: cv.getContext('2d'), viewport: vp }).promise;
+    images.push(cv.toDataURL('image/png').split(',')[1]);
+  }
+  return { text:'', images };
+}
+
+// ---------- CV schema (tool) ----------
+const CV_TOOL = {
+  name: 'emitir_curriculo',
+  description: 'Devolve os dados do currículo de forma estruturada, fielmente extraídos do documento original.',
+  input_schema: {
+    type:'object', additionalProperties:false,
+    properties:{
+      nome:{type:'string', description:'Nome completo da pessoa'},
+      headline:{type:'string', description:'Cargo/título atual, ex: "CEO na Empresa | CFO"'},
+      localizacao:{type:'string'},
+      telefone:{type:'string', description:'vazio se não constar'},
+      email:{type:'string', description:'vazio se não constar'},
+      linkedin:{type:'string', description:'vazio se não constar'},
+      resumo:{type:'string', description:'Resumo executivo reescrito com impacto, baseado SOMENTE em fatos do documento'},
+      experiencias:{type:'array', items:{type:'object', additionalProperties:false,
+        properties:{ cargo:{type:'string'}, empresa:{type:'string'}, periodo:{type:'string', description:'ex: abr/2023 – Presente'}, local:{type:'string'}, nota:{type:'string', description:'detalhe extra opcional, vazio se não houver'} },
+        required:['cargo','empresa','periodo','local','nota'] }},
+      educacao:{type:'array', items:{type:'object', additionalProperties:false,
+        properties:{ curso:{type:'string'}, instituicao:{type:'string'}, periodo:{type:'string'} },
+        required:['curso','instituicao','periodo'] }},
+      conquistas:{type:'array', items:{type:'object', additionalProperties:false,
+        properties:{ titulo:{type:'string'}, descricao:{type:'string'} },
+        required:['titulo','descricao'] }},
+      idiomas:{type:'array', items:{type:'object', additionalProperties:false,
+        properties:{ idioma:{type:'string'}, nivel:{type:'string', description:'Nativo/Fluente/Avançado/Intermediário/Básico'} },
+        required:['idioma','nivel'] }},
+      competencias:{type:'array', items:{type:'string'}},
+      premios:{type:'array', items:{type:'object', additionalProperties:false,
+        properties:{ titulo:{type:'string'}, descricao:{type:'string'} },
+        required:['titulo','descricao'] }}
+    },
+    required:['nome','headline','localizacao','telefone','email','linkedin','resumo','experiencias','educacao','conquistas','idiomas','competencias','premios']
+  }
+};
+
+// ---------- Generate ----------
+$('go').addEventListener('click', generate);
+async function generate(){
+  const key = $('key').value.trim();
+  if(!fileData || !key) return;
+  $('go').disabled = true; $('dl').disabled = true;
+  $('go').innerHTML = '<span class="spin"></span> Processando…';
+  setStatus('Enviando à IA e estruturando o currículo…');
+
+  const lang = $('lang').value;
+  const instr =
+    'Você é um especialista em redação executiva de currículos e otimização ATS. '+
+    'A seguir está o conteúdo de um currículo (texto extraído ou imagens das páginas). '+
+    'Extraia TODAS as informações e devolva-as pela ferramenta "emitir_curriculo". Regras absolutas:\n'+
+    '- Escreva o resultado em '+lang+'.\n'+
+    '- NUNCA invente cargos, empresas, datas, números, certificações, idiomas ou competências. Use apenas o que está no documento.\n'+
+    '- Se telefone, e-mail ou LinkedIn não constarem, deixe o campo vazio (string vazia).\n'+
+    '- Reescreva o resumo e as descrições com linguagem profissional e verbos de impacto, sem alterar fatos.\n'+
+    '- Mantenha as datas e a ordem cronológica exatamente como no original.\n'+
+    '- Padronize títulos de seção. Não use markdown nos campos.';
+
+  const content = [];
+  if(fileData.images.length){
+    for(const b64 of fileData.images) content.push({ type:'image', source:{ type:'base64', media_type:'image/png', data:b64 } });
+    content.push({ type:'text', text: instr + '\n\n(As imagens acima são as páginas do currículo.)' });
+  } else {
+    content.push({ type:'text', text: instr + '\n\n=== CONTEÚDO DO CURRÍCULO ===\n' + fileData.text });
+  }
+
+  try{
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'content-type':'application/json',
+        'x-api-key': key,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body: JSON.stringify({
+        model: $('model').value,
+        max_tokens: 4096,
+        tools:[CV_TOOL],
+        tool_choice:{ type:'tool', name:'emitir_curriculo' },
+        messages:[{ role:'user', content }]
+      })
+    });
+    if(!resp.ok){
+      let detail=''; try{ detail = (await resp.json()).error?.message || ''; }catch(e){}
+      throw new Error('HTTP '+resp.status+(detail?' — '+detail:''));
+    }
+    const data = await resp.json();
+    const block = (data.content||[]).find(b=>b.type==='tool_use');
+    if(!block) throw new Error('A IA não devolveu dados estruturados.');
+    render(block.input);
+    setStatus('Currículo gerado. Você pode editar qualquer texto clicando nele e depois baixar em PDF.', 'ok');
+    $('dl').disabled = false;
+  }catch(err){
+    console.error(err);
+    let m = err.message;
+    if(/Failed to fetch/i.test(m)) m = 'Falha de conexão/CORS. Verifique a internet e a chave de API.';
+    setStatus('Erro: '+m, 'err');
+  }finally{
+    $('go').disabled = false; $('go').textContent = '3 · Gerar currículo';
+  }
+}
+
+// ---------- Render ----------
+function initials(name){
+  const p = (name||'').trim().split(/\s+/).filter(Boolean);
+  if(!p.length) return 'CV';
+  return ((p[0][0]||'')+(p.length>1?p[p.length-1][0]:'')).toUpperCase();
+}
+function levelDots(nivel){
+  const map={ 'nativo':5,'fluente':5,'avançado':4,'avancado':4,'intermediário':3,'intermediario':3,'básico':2,'basico':2 };
+  const n = map[(nivel||'').toLowerCase().trim()] || 4;
+  let h=''; for(let i=1;i<=5;i++) h+='<i class="dot'+(i<=n?' on':'')+'"></i>'; return h;
+}
+function ed(t){ return '<span contenteditable="true">'+esc(t)+'</span>'; }
+
+function render(cv){
+  const expr = (cv.experiencias||[]).map(e=>`
+    <div class="entry">
+      <div class="title">${ed(e.cargo)}</div>
+      <div class="org">${ed(e.empresa)}</div>
+      <div class="meta">
+        <span>${ICON.cal}${ed(e.periodo)}</span>
+        ${e.local?`<span>${ICON.pin}${ed(e.local)}</span>`:''}
+      </div>
+      ${e.nota?`<div class="note">${ed(e.nota)}</div>`:''}
+    </div>`).join('');
+
+  const edu = (cv.educacao||[]).map(e=>`
+    <div class="entry">
+      <div class="title">${ed(e.curso)}</div>
+      <div class="org">${ed(e.instituicao)}</div>
+      <div class="meta"><span>${ICON.cal}${ed(e.periodo)}</span></div>
+    </div>`).join('');
+
+  const ach = (cv.conquistas||[]).map((a,i)=>`
+    <div class="ach">
+      <div class="badge">${ACH_ICONS[i%ACH_ICONS.length]}</div>
+      <div><div class="t">${ed(a.titulo)}</div><div class="d">${ed(a.descricao)}</div></div>
+    </div>`).join('');
+
+  const langs = (cv.idiomas||[]).map(l=>`
+    <div class="lang">
+      <div><div class="n">${ed(l.idioma)}</div><div class="lv">${ed(l.nivel)}</div></div>
+      <div class="dots">${levelDots(l.nivel)}</div>
+    </div>`).join('');
+
+  const skills = (cv.competencias||[]).length
+    ? `<div class="block"><h2 class="sec">Competências</h2><div class="skills">${cv.competencias.map(s=>`<span class="skill">${esc(s)}</span>`).join('')}</div></div>` : '';
+
+  const prem = (cv.premios||[]).length
+    ? `<div class="block"><h2 class="sec">Prêmios</h2>${cv.premios.map(p=>`<p class="award"><b>${ed(p.titulo)}</b><br>${ed(p.descricao)}</p>`).join('')}</div>` : '';
+
+  const c = [];
+  if(cv.telefone) c.push(`<span>${ICON.phone}${ed(cv.telefone)}</span>`); else c.push(`<span>${ICON.phone}<span contenteditable="true" style="color:#bbb">[telefone]</span></span>`);
+  if(cv.email) c.push(`<span>${ICON.mail}${ed(cv.email)}</span>`); else c.push(`<span>${ICON.mail}<span contenteditable="true" style="color:#bbb">[e-mail]</span></span>`);
+  if(cv.linkedin) c.push(`<span>${ICON.link}${ed(cv.linkedin)}</span>`);
+  if(cv.localizacao) c.push(`<span>${ICON.pin}${ed(cv.localizacao)}</span>`);
+
+  $('page').innerHTML = `
+    <div class="head">
+      <div>
+        <div class="name">${ed(cv.nome)}</div>
+        <div class="role">${ed(cv.headline)}</div>
+        <div class="contact">${c.join('')}</div>
+      </div>
+      <div class="photo">${initials(cv.nome)}</div>
+    </div>
+    <div class="body">
+      <div class="left">
+        <div class="block"><h2 class="sec">Experiência</h2>${expr||'<div class="note">—</div>'}</div>
+        ${edu?`<div class="block"><h2 class="sec">Educação</h2>${edu}</div>`:''}
+      </div>
+      <div class="right">
+        ${cv.resumo?`<div class="block"><h2 class="sec">Resumo</h2><p class="resumo">${ed(cv.resumo)}</p></div>`:''}
+        ${ach?`<div class="block"><h2 class="sec">Conquistas-Chave</h2>${ach}</div>`:''}
+        ${langs?`<div class="block"><h2 class="sec">Idiomas</h2>${langs}</div>`:''}
+        ${skills}
+        ${prem}
+      </div>
+    </div>`;
+  $('empty').style.display='none';
+  $('page').style.display='block';
+}
+
+$('dl').addEventListener('click', ()=>window.print());
+</script>
+</body>
+</html>
