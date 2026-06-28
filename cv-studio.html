@@ -153,10 +153,6 @@
     <button class="tbtn" id="importBtn">⤴ Importar PDF/Word</button>
     <input id="file" type="file" accept=".pdf,.doc,.docx" hidden>
     <div class="sp"></div>
-    <label>IA</label><input id="key" type="password" placeholder="chave Anthropic (sk-ant-…)" autocomplete="off">
-    <select id="lang" title="Idioma da IA">
-      <option>Português</option><option>Inglês</option><option>Espanhol</option>
-    </select>
     <button class="tbtn pri" id="dlBtn">⬇ Baixar PDF</button>
   </div>
   <div class="main">
@@ -243,8 +239,6 @@ let S = load() || demo();
 /* ---------------- Persistence ---------------- */
 function save(){ try{ localStorage.setItem('cvstudio', JSON.stringify(S)); }catch(e){} }
 function load(){ try{ const r=localStorage.getItem('cvstudio'); if(!r) return null; const o=JSON.parse(r); (o.sections||[]).forEach(s=>{}); return o; }catch(e){ return null; } }
-$('key').value = localStorage.getItem('anthropicKey')||'';
-$('key').addEventListener('input',()=>localStorage.setItem('anthropicKey',$('key').value.trim()));
 
 /* ---------------- Helpers ---------------- */
 const esc=s=>(s==null?'':String(s)).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -283,7 +277,7 @@ function renderEditor(){
    <div class="fld"><label>Localização</label><input data-b="location" value="${esc(b.location)}"></div>
    <div class="fld"><label>Foto</label><input type="file" accept="image/*" id="photoIn" style="font-size:11px;padding:5px"></div>
  </div>`;
- h+=`<div class="fld"><label>Resumo profissional <button class="ai" data-ai="summary" style="float:right">✦ Gerar com IA</button></label><textarea data-b="summary">${esc(b.summary)}</textarea></div>`;
+ h+=`<div class="fld"><label>Resumo profissional</label><textarea data-b="summary">${esc(b.summary)}</textarea></div>`;
 
  /* Sections */
  h+='<div class="ed-h">Seções</div>';
@@ -343,8 +337,7 @@ function itemEditor(sec,si,it,ii,kind){
      <div class="fld" style="margin-bottom:6px"><input data-it="${si}|${ii}|periodo" value="${esc(it.periodo)}" placeholder="Período"></div>
      <div class="fld" style="margin-bottom:6px"><input data-it="${si}|${ii}|local" value="${esc(it.local)}" placeholder="Local"></div>
    </div>
-   <div class="fld" style="margin:0"><label style="display:flex;justify-content:space-between">Descrição / bullets (uma por linha)
-     <button class="ai" data-ai="item|${si}|${ii}">✦ Melhorar</button></label>
+   <div class="fld" style="margin:0"><label>Descrição / bullets (uma por linha)</label>
      <textarea data-it="${si}|${ii}|descricao">${esc(it.descricao)}</textarea></div></div>`;
 }
 
@@ -366,7 +359,7 @@ $('editor').addEventListener('change', e=>{ // selects (font, nivel)
  }
 });
 $('editor').addEventListener('click', e=>{
- const t=e.target.closest('[data-tmpl],[data-acc],[data-col],[data-mvsec],[data-delsec],[data-additem],[data-mvitem],[data-delitem],[data-addtype],#addBtn,[data-ai]');
+ const t=e.target.closest('[data-tmpl],[data-acc],[data-col],[data-mvsec],[data-delsec],[data-additem],[data-mvitem],[data-delitem],[data-addtype],#addBtn');
  if(!t) return;
  if(t.dataset.tmpl){ S.template=t.dataset.tmpl; renderEditor(); applyAndPreview(); save(); return; }
  if(t.dataset.acc){ S.accent=t.dataset.acc; renderEditor(); applyAndPreview(); save(); return; }
@@ -378,7 +371,6 @@ $('editor').addEventListener('click', e=>{
  if(t.dataset.delitem!==undefined){ const [si,ii]=t.dataset.delitem.split('|').map(Number); S.sections[si].items.splice(ii,1); renderEditor(); renderPreview(); save(); return; }
  if(t.id==='addBtn'){ $('addsec').classList.toggle('open'); return; }
  if(t.dataset.addtype){ S.sections.push(newSection(t.dataset.addtype)); $('addsec').classList.remove('open'); renderEditor(); renderPreview(); save(); return; }
- if(t.dataset.ai){ aiAction(t.dataset.ai, t); return; }
 });
 function moveArr(a,i,j){ if(j<0||j>=a.length) return; const x=a.splice(i,1)[0]; a.splice(j,0,x); }
 
@@ -526,51 +518,28 @@ function renderATS(){
 /* =========================================================
    AI
 ========================================================= */
+function aiKey(){
+ let k=localStorage.getItem('anthropicKey')||'';
+ if(!k){ k=(window.prompt('Para importar com IA, cole sua chave de API Anthropic (sk-ant-…).\nEla fica salva apenas neste navegador.')||'').trim(); if(k) localStorage.setItem('anthropicKey',k); }
+ return k;
+}
 async function callClaude(messages, opts={}){
- const key=$('key').value.trim();
- if(!key){ toast('Cole sua chave de API Anthropic no topo.'); throw new Error('no key'); }
+ const key=aiKey();
+ if(!key) throw new Error('no key');
  const body={ model:MODEL, max_tokens:opts.max||1024, messages };
  if(opts.tools){ body.tools=opts.tools; body.tool_choice={type:'tool',name:opts.tools[0].name}; }
  const r=await fetch('https://api.anthropic.com/v1/messages',{ method:'POST',
    headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
    body:JSON.stringify(body) });
- if(!r.ok){ let d=''; try{ d=(await r.json()).error?.message||''; }catch(e){} throw new Error('HTTP '+r.status+(d?' — '+d:'')); }
+ if(!r.ok){ let d=''; try{ d=(await r.json()).error?.message||''; }catch(e){} if(r.status===401) localStorage.removeItem('anthropicKey'); throw new Error('HTTP '+r.status+(d?' — '+d:'')); }
  return r.json();
-}
-function btnBusy(btn,on){ if(!btn) return; if(on){ btn._html=btn.innerHTML; btn.innerHTML='<span class="spin"></span>'; btn.disabled=true; } else { btn.innerHTML=btn._html||btn.innerHTML; btn.disabled=false; } }
-
-async function aiAction(action, btn){
- const lang=$('lang').value;
- try{
-   btnBusy(btn,true);
-   if(action==='summary'){
-     const ctx=summarizeResume();
-     const data=await callClaude([{role:'user',content:`Com base SOMENTE nestes dados de currículo, escreva um resumo profissional executivo em ${lang}, com 3 a 4 frases, impacto e sem inventar fatos. Responda apenas com o texto do resumo.\n\n${ctx}`}],{max:600});
-     const txt=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').trim();
-     if(txt){ S.basics.summary=txt; renderEditor(); renderPreview(); save(); toast('Resumo gerado.'); }
-   } else if(action.startsWith('item|')){
-     const [,si,ii]=action.split('|'); const it=S.sections[+si].items[+ii];
-     const cur=it.descricao||(it.cargo+' '+it.empresa);
-     const data=await callClaude([{role:'user',content:`Reescreva esta descrição de experiência em ${lang} como 2 a 4 bullets de impacto, começando com verbos de ação e mantendo os fatos. Não invente números. Devolva um bullet por linha, sem marcadores.\n\nCargo: ${it.cargo} — ${it.empresa}\nDescrição atual: ${cur}`}],{max:500});
-     const txt=(data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('').replace(/^[\-•\s]+/gm,'').trim();
-     if(txt){ it.descricao=txt; renderEditor(); renderPreview(); save(); toast('Descrição aprimorada.'); }
-   }
- }catch(err){ if(err.message!=='no key') toast('IA: '+err.message); }
- finally{ btnBusy(btn,false); }
-}
-function summarizeResume(){
- const b=S.basics; let s=`Nome: ${b.name}\nCargo: ${b.headline}\nLocal: ${b.location}\n`;
- S.sections.forEach(sec=>{ s+=`\n[${sec.title}]\n`;
-   sec.items.forEach(it=>{ if(typeof it==='string') s+='- '+it+'\n';
-     else s+=`- ${it.cargo||it.titulo||it.idioma||''} ${it.empresa||''} ${it.periodo||''} ${it.nivel||''} ${it.descricao||''}`.trim()+'\n'; }); });
- return s;
 }
 
 /* ---------- Import ---------- */
 $('importBtn').addEventListener('click',()=>$('file').click());
 $('file').addEventListener('change',e=>{ if(e.target.files[0]) importFile(e.target.files[0]); });
 async function importFile(file){
- if(!$('key').value.trim()){ toast('Cole sua chave de API antes de importar.'); return; }
+ if(!aiKey()){ toast('Importação cancelada (sem chave de API).'); return; }
  toast('Lendo arquivo…');
  const ext=file.name.toLowerCase().split('.').pop();
  let content=[];
@@ -587,8 +556,7 @@ async function importFile(file){
  }catch(err){ toast('Erro ao ler: '+err.message); return; }
 
  toast('IA estruturando o currículo…');
- const lang=$('lang').value;
- const instr=`Você é especialista em currículos. Extraia TODAS as informações do currículo a seguir e devolva pela ferramenta. Escreva em ${lang}. NUNCA invente dados; deixe vazio o que não constar. Reescreva descrições com impacto sem alterar fatos.`;
+ const instr=`Você é especialista em currículos. Extraia TODAS as informações do currículo a seguir e devolva pela ferramenta. Escreva no mesmo idioma do currículo original. NUNCA invente dados; deixe vazio o que não constar. Reescreva descrições com impacto sem alterar fatos.`;
  content.push({type:'text',text:instr});
  try{
    const data=await callClaude([{role:'user',content}],{max:4096,tools:[IMPORT_TOOL]});
