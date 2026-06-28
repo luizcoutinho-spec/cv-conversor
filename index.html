@@ -82,7 +82,8 @@
   @keyframes sp{ to{ transform:rotate(360deg);} }
   /* ===================== RESUME PAGE ===================== */
   .pagewrap{ transform-origin:top center; }
-  .page{ width:210mm; min-height:297mm; background:#fff; box-shadow:0 3px 22px rgba(0,0,0,.16); font-family:var(--font); color:var(--ink); }
+  .page{ width:210mm; height:297mm; overflow:hidden; position:relative; background:#fff; box-shadow:0 3px 22px rgba(0,0,0,.16); font-family:var(--font); color:var(--ink); }
+  .fit{ width:210mm; transform-origin:top left; }
   .page *{ box-sizing:border-box; }
   .page .pad{ padding:46px 42px; }
   .r-name{ font-size:30px; font-weight:800; letter-spacing:.4px; line-height:1.05; }
@@ -135,15 +136,13 @@
   .t-modern .cols{ padding:26px 42px; }
   .t-modern .sec-ttl{ color:var(--accent); border-left:3px solid var(--accent); padding-left:8px; }
   /* ===================== PRINT ===================== */
-  @page{ size:A4; margin:11mm; }
+  @page{ size:A4; margin:0; }
   @media print{
     .top,.editor,.toast{ display:none !important; }
     .app,.main,.preview{ display:block; height:auto; overflow:visible; }
     .preview{ padding:0; background:#fff; }
-    .pagewrap{ transform:none !important; }
-    .page{ width:auto; min-height:auto; box-shadow:none; }
-    .t-exec .pad,.t-classic .pad{ padding:0; }
-    .t-modern .band{ padding:22px 0; } .t-modern .cols{ padding:18px 0 0; }
+    .pagewrap{ transform:none !important; height:auto !important; }
+    .page{ box-shadow:none; }
   }
 </style>
 </head>
@@ -446,19 +445,34 @@ function renderPreview(){
  if(t==='exec'){
    const main=S.sections.filter(s=>s.col!=='side').map(sectionBlock).join('');
    const side=summaryBlk+S.sections.filter(s=>s.col==='side').map(sectionBlock).join('');
-   inner=`<div class="page t-exec"><div class="pad"><div class="hdr">${headerHTML(b)}</div>
-     <div class="cols"><div class="main">${main}</div><div class="side">${side}</div></div></div></div>`;
+   inner=`<div class="page t-exec"><div class="fit"><div class="pad"><div class="hdr">${headerHTML(b)}</div>
+     <div class="cols"><div class="main">${main}</div><div class="side">${side}</div></div></div></div></div>`;
  } else if(t==='classic'){
    const all=summaryBlk+S.sections.map(sectionBlock).join('');
-   inner=`<div class="page t-classic"><div class="pad"><div class="hdr">${headerHTML(b)}</div><div class="cols">${all}</div></div></div>`;
+   inner=`<div class="page t-classic"><div class="fit"><div class="pad"><div class="hdr">${headerHTML(b)}</div><div class="cols">${all}</div></div></div></div>`;
  } else {
    const all=summaryBlk+S.sections.map(sectionBlock).join('');
-   inner=`<div class="page t-modern"><div class="pad"><div class="band">${headerHTML(b)}</div><div class="cols">${all}</div></div></div>`;
+   inner=`<div class="page t-modern"><div class="fit"><div class="pad"><div class="band">${headerHTML(b)}</div><div class="cols">${all}</div></div></div></div>`;
  }
  $('pagewrap').innerHTML=inner;
- applyTheme(); fitPreview(); renderATS();
+ applyTheme(); fitOnePage(); fitPreview(); renderATS();
 }
 
+function fitOnePage(){
+ const page=$('pagewrap').querySelector('.page'); if(!page) return;
+ const fit=page.querySelector('.fit'); if(!fit) return;
+ fit.style.transform='none'; fit.style.width='210mm';
+ const avail=page.clientHeight;
+ for(let i=0;i<4;i++){
+   const h=fit.scrollHeight;
+   const k=avail/h;
+   if(k>=0.999){ fit.style.width='210mm'; break; }
+   fit.style.width=(210/k)+'mm';
+ }
+ const h=fit.scrollHeight;
+ const k=Math.min(1,(avail-1)/h);
+ fit.style.transform='scale('+k+')';
+}
 function fitPreview(){
  const pw=$('pagewrap'); const page=pw.querySelector('.page'); if(!page) return;
  const avail=pw.parentElement.clientWidth-48; const w=page.offsetWidth||794;
@@ -607,7 +621,7 @@ function applyImported(d){
 }
 
 /* ---------- Download ---------- */
-$('dlBtn').addEventListener('click',()=>window.print());
+$('dlBtn').addEventListener('click',()=>{ fitOnePage(); setTimeout(()=>window.print(),60); });
 
 /* ---------- Boot ---------- */
 renderEditor(); renderPreview();
